@@ -1,0 +1,142 @@
+/*
+	Sleep Study Script
+	Written by Dan Lawler and Allison Marley
+	Albrecht Lab
+ */
+
+import org.micromanager.api.*;
+import java.lang.*;
+import ij.*;
+import ij.io.FileSaver; 
+import org.micromanager.utils.ImageUtils; 
+import ij.process.ImageProcessor; 
+import ij.ImagePlus;
+
+gui.setImageSavingFormat(org.micromanager.acquisition.TaggedImageStorageDiskDefault.class);
+
+
+//Load GUI //
+int testover=0;
+int guiover=0;
+gui.sleep(500);
+bg("C:/MicroManager Control Scripts/GUI_DA.bsh");
+while (guiover<1){
+		gui.sleep(1);
+	}
+guiover=0;
+
+//Load camera + settings //
+// Ask for file location, framerate, exposure, test duration
+// Parameters
+cameraName = mmc.getCameraDevice(); 
+mmc.setProperty(cameraName, "OUTPUT TRIGGER KIND[0]", "EXPOSURE");
+mmc.setProperty(cameraName, "Binning", "2x2");
+mmc.setProperty(cameraName, "Exposure", "20");
+int numFrames = 4320;
+int intervalMs = 10000;
+//***may need to set more camera properties?
+
+// File Locations
+drive="G:/";
+root="072315Stim/TimeLapseImages";
+firstimage="img_000000000__000.tif";
+rootDirName="G:/072315Stim";
+acqName = "TimeLapseImages";
+range = 3;
+
+//Testing loop
+
+// Clear all previous acquisitions
+gui.closeAllAcquisitions();
+gui.clearMessageWindow();
+
+
+String decision="";
+hasBeenAwake=0;
+sleepCounter=0;
+gui.openAcquisition(acqName, rootDirName, numFrames, 1, 1, true, true);
+int count = 0;
+int sleeps = 0;
+String filler="";
+int imgcounter = 1;
+for(int i=0; i<numFrames; i++) {
+	now=System.currentTimeMillis();
+	cameraName = mmc.getCameraDevice(); 
+	mmc.setProperty(cameraName, "OUTPUT TRIGGER KIND[0]", "EXPOSURE");
+	mmc.setProperty(cameraName, "Binning", "2x2");
+	mmc.setProperty(cameraName, "Exposure", "20");
+	gui.snapAndAddImage(acqName,i,0,0,0);
+	count++;
+	//call image processing imagej macros
+	if (count>2){
+		if (sleeps>0){
+			sleepsno=Integer.toString(sleeps);
+			Ourfile = drive+root+"_"+sleepsno+"/"+firstimage;
+		}
+		else{
+			Ourfile = drive+root+"/"+firstimage;
+		}
+		imageno=Integer.toString(i-imgcounter);
+		IJ.run("Image Sequence...", "open="+Ourfile+" number="+range+" starting="+imageno+" increment=1 scale=25 file[] sort");
+		Prefs.blackBackground = false;
+		decision = IJ.runMacroFile("C:\\testmoments.ijm");
+		//print(decision);
+		if (decision.equals("Awake")){
+			hasBeenAwake=1;
+			sleepCounter=0;
+			itTook = System.currentTimeMillis()-now;
+			gui.sleep(intervalMs - itTook);
+			}
+		else if (hasBeenAwake==1 && sleepCounter>5){
+			//do asleep stuff
+			bg("C:/MicroManager Control Scripts/GUI_DAquick.bsh");
+			while (guiover<1){
+				Thread.sleep(1);
+			}
+			gui.setImageSavingFormat(org.micromanager.acquisition.TaggedImageStorageMultipageTiff.class);
+			bg("C:/MicroManager Control Scripts/Run_DA.bsh");
+			while (testover<1){
+				Thread.sleep(1);
+				}
+			hasBeenAwake=0;
+			testover=0;
+			guiover=0;
+			count=0;
+			imgcounter=i+2;
+			sleeps++;
+			print(sleeps);
+			if ((i+1)<10){
+				filler="00000000";}
+			else if ((i+1)<100){
+				filler="0000000";}
+			else if ((i+1)<1000){
+				filler="000000";}
+			else if ((i+1)<10000){
+				filler="00000";}
+			else if ((i+1)<100000){
+				filler="0000";}
+			else if ((i+1)<1000000){
+				filler="000";}
+			firstimage="img_"+filler+Integer.toString(i+1)+"__000.tif";
+			numFrames=numFrames-3;
+			gui.closeAllAcquisitions();
+			gui.clearMessageWindow();
+			serialWrite(vport, "v2on");
+			gui.setImageSavingFormat(org.micromanager.acquisition.TaggedImageStorageDiskDefault.class);
+			itTook = System.currentTimeMillis()-now;
+			gui.sleep(intervalMs*4 - itTook);
+			gui.openAcquisition(acqName, rootDirName, numFrames, 1, 1, true, true);
+		}
+		else{
+			sleepCounter++;
+			itTook = System.currentTimeMillis()-now;
+			gui.sleep(intervalMs - itTook);
+		}
+	}
+	else {
+		itTook = System.currentTimeMillis()-now;
+		gui.sleep(intervalMs - itTook);
+	}
+}
+
+gui.setImageSavingFormat(org.micromanager.acquisition.TaggedImageStorageMultipageTiff.class);
